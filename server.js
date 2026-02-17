@@ -6,6 +6,10 @@ const PORT = 3000;
 
 app.use(express.json());
 
+/*
+  Helper Function:
+  Extract valid ingredients from strIngredient1..20
+*/
 function extractIngredients(meal) {
   const ingredients = [];
 
@@ -21,51 +25,45 @@ function extractIngredients(meal) {
 }
 
 app.get("/recipes", async (req, res) => {
-  try {
-    const foodName = req.query.query;
-
-    if (!foodName) {
-      return res.status(400).json({ error: "Query parameter is required" });
+    try {
+      const RANDOM_ATTEMPTS = 5; // number of random meals to compare
+      let bestRecipe = null;
+  
+      for (let i = 0; i < RANDOM_ATTEMPTS; i++) {
+  
+        const response = await axios.get(
+          "https://www.themealdb.com/api/json/v1/1/random.php"
+        );
+  
+        const meal = response.data.meals[0];
+        const ingredients = extractIngredients(meal);
+  
+        const recipe = {
+          name: meal.strMeal,
+          image: meal.strMealThumb,
+          ingredientCount: ingredients.length,
+          ingredients: ingredients
+        };
+  
+        if (!bestRecipe || recipe.ingredientCount < bestRecipe.ingredientCount) {
+          bestRecipe = recipe;
+        }
+      }
+  
+      res.json({
+        minimumIngredients: bestRecipe.ingredientCount,
+        recipe: bestRecipe
+      });
+  
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).json({
+        error: "Failed to fetch random recipes"
+      });
     }
-
-    const url = `https://www.themealdb.com/api/json/v1/1/search.php?s=${foodName}`;
-
-    const response = await axios.get(url);
-    const meals = response.data.meals;
-
-    if (!meals) {
-      return res.status(404).json({ error: "No recipes found" });
-    }
-
-    const processedRecipes = meals.map((meal) => {
-      const ingredients = extractIngredients(meal);
-
-      return {
-        name: meal.strMeal,
-        image: meal.strMealThumb,
-        ingredientCount: ingredients.length,
-        ingredients: ingredients
-      };
-    });
-
-    const minimumIngredients = Math.min(
-      ...processedRecipes.map(r => r.ingredientCount)
-    );
-
-    const filteredRecipes = processedRecipes.filter(
-      r => r.ingredientCount === minimumIngredients
-    );
-
-    res.json({
-      minimumIngredients,
-      recipes: filteredRecipes
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch recipes" });
-  }
-});
+  });
+  
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
